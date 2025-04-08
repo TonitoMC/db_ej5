@@ -97,3 +97,11 @@ CREATE TABLE mantenimientos (
   sucursal_id integer NOT NULL REFERENCES sucursales(id),
   costo decimal NOT NULL
 );
+
+CREATE TABLE auditoria_truncates (
+    id SERIAL PRIMARY KEY,
+    tabla TEXT NOT NULL,        -- TG_TABLE_NAME del trigger
+    usuario TEXT NOT NULL,      -- SESSION_USER
+    fecha TIMESTAMP NOT NULL    -- CURRENT_TIMESTAMP
+);
+
