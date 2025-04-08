@@ -61,3 +61,41 @@ $$ LANGUAGE plpgsql;
 CREATE TRIGGER trg_log_truncate
 AFTER TRUNCATE ON carritos
 EXECUTE FUNCTION log_truncate();
+
+-- Verificacion que exista un (y solo un) instrumento ID o accesorio ID para cada detalle de carrito
+-- Trigger BEFORE INSERT
+CREATE OR REPLACE FUNCTION validate_cart_detail()
+RETURNS TRIGGER AS $$
+BEGIN
+    IF (NEW.instrumento_id IS NULL) = (NEW.accesorio_id IS NULL) THEN
+      RAISE EXCEPTION 'Cada detalle de pedido debe tener unicamente un ID de instrumento o accesorio';
+    END IF;
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER trg_verify_cart_detail
+BEFORE INSERT ON detalles_carritos
+FOR EACH ROW EXECUTE FUNCTION validate_cart_detail();
+
+-- Actualizacion de total de carrito y subtotal
+CREATE OR REPLACE FUNCTION update_cart_total()
+RETURNS TRIGGER AS $$
+BEGIN
+  UPDATE carritos
+  SET total = (
+    SELECT SUM(subtotal)
+    FROM detalles_carritos
+    WHERE carrito_id = NEW.carrito_id
+  )
+  WHERE id = NEW.carrito_id;
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER trg_update_cart_total
+AFTER INSERT ON detalles_carritos
+FOR EACH ROW EXECUTE FUNCTION update_cart_total();
+
+
+  
