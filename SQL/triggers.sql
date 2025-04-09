@@ -97,5 +97,28 @@ CREATE TRIGGER trg_update_cart_total
 AFTER INSERT ON detalles_carritos
 FOR EACH ROW EXECUTE FUNCTION update_cart_total();
 
+-- Prevenir actualizar detalles de un pedido completado
+-- Before update
+CREATE OR REPLACE FUNCTION prevent_completed_cart_updates()
+RETURNS TRIGGER AS $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM carritos
+    WHERE id = NEW.carrito_id
+    AND estado = 'completado'
+  ) THEN
+      RAISE EXCEPTION 'El carrito ya fue comprado, no se puede modificar';
+  END IF;
 
-  
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER trg_lock_completed_carts
+BEFORE UPDATE ON detalles_carritos
+FOR EACH ROW EXECUTE FUNCTION prevent_completed_cart_updates();
+
+-- Actualiza el total del carrito luego de modificar algun producto / linea
+CREATE TRIGGER trg_update_cart_after_update
+AFTER UPDATE ON detalles_carritos
+FOR EACH ROW EXECUTE FUNCTION update_cart_total();
