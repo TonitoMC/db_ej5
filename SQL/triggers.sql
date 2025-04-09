@@ -1,4 +1,4 @@
---soft delete
+-- Soft Delete para Direcciones
 CREATE FUNCTION soft_delete_direccion()
 RETURNS TRIGGER AS $$
 BEGIN
@@ -9,13 +9,20 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
+-- TRIGGER
+-- TABLA: direcciones
+-- EVENTO: Before Delete
+-- ACCION: Setea el campo Activa a falso
+-- JUSTIFICACION: Se mantiene un record de las direcciones que se han asociado a los clientes,
+-- en caso que se borre se puede explicar 'X direccion estaba asociada previamente'. Se hace before delete
+-- asi se lleva a cabo ANTES del evento.
+-- ALTERNATIVA: Se puede crear una tabla de direcciones_historicas o similar para almacenar las direcciones eliminadas
 CREATE TRIGGER trg_soft_delete_direccion
 BEFORE DELETE ON direcciones
 FOR EACH ROW
 EXECUTE FUNCTION soft_delete_direccion()
 
-
---evitar llaves huerfanas (igual sale con un ON DELETE CASCADE pero hay que hacer los triggers xd)
+-- Al borrar un carrito, borrar el pedido asociado para evitar llaves huerfanas
 CREATE OR REPLACE FUNCTION delete_pedido_asociado()
 RETURNS TRIGGER AS $$
 BEGIN
@@ -24,13 +31,20 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
+-- TRIGGER
+-- TABLA: carritos / pedidos
+-- EVENTO: After Delete
+-- ACCION: Borra el pedido asociado a algun carrito borrado
+-- JUSTIFICACION: Al borrar un carrito la llave foranea dentro de un pedido puede quedar huerfana,
+-- llevandonos a tener pedidos sin detalles. Si el carrito ya no nos es util, tampoco nos es util el pedido.
+-- Se hace after delete ya que primero se completa la operacion de borrar el carrito y luego el pedido.
+-- ALTERNATIVA: Se puede utilizar ON DELETE CASCADE
 CREATE TRIGGER trg_delete_pedido_carrito
 AFTER DELETE ON carritos
 FOR EACH ROW
 EXECUTE FUNCTION delete_pedido_asociado();
 
-
---revisar permisos antes de TRUNCATE
+-- Al intentar truncar una tabla, verificar permisos anteriormente
 CREATE OR REPLACE FUNCTION verificar_permiso_truncate()
 RETURNS TRIGGER AS $$
 BEGIN
@@ -41,14 +55,19 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
+-- TRIGGER
+-- TABLA: Cualquiera
+-- EVENTO: Before Truncate
+-- ACCION: Verificar permisos, si no cumple no se realiza la accion
+-- JUSTIFICACION: Se necesitan comprobar los permisos antes de realizar este tipo de acciones, se debe realizar
+-- ANTES de truncar la tabla para evitar que se cumpla esta accion.
+-- ALTERNATIVA: Se pueden utilizar permisos de Postgres para manejar las acciones en vez de triggers
 CREATE TRIGGER trg_verificar_truncate
 BEFORE TRUNCATE ON carritos
 FOR EACH STATEMENT
 EXECUTE FUNCTION verificar_permiso_truncate();
 
-
-
---loggeo de quien hizo TRUNCATE (era la implementacion mas simple)
+-- Crear entrada en tabla de logs para cada truncate
 CREATE OR REPLACE FUNCTION log_truncate()
 RETURNS TRIGGER AS $$
 BEGIN
@@ -58,6 +77,13 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
+-- TRIGGER
+-- TABLA: Cualquiera
+-- EVENTO: After Truncare
+-- ACCION: Crear una entrada en la tabla de logs para cada truncate
+-- JUSTIFICACION: Genera logs sobre quien trunco las tablas, se lleva a cabo DESPUES del evento porque se
+-- debe completar antes de llenar los logs
+-- ALTERNATIVA: Talvez tener una tabla de logs mas generalizada
 CREATE TRIGGER trg_log_truncate
 AFTER TRUNCATE ON carritos
 EXECUTE FUNCTION log_truncate();
@@ -74,6 +100,13 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
+-- TRIGGER
+-- TABLA: DETALLES CARRITOS
+-- EVENTO: Before Insert
+-- ACCION: Verificar que haya un instrumento ID o un accesorio ID pero no ambos en un detalle de carrito,
+-- evita la transaccion en caso de ser invalida
+-- JUSTIFICACION: Mantiene la integridad de los datos, se realiza antes del insert para prevenir acciones invalidas
+-- ALTERNATIVA: Utilizar checks
 CREATE TRIGGER trg_verify_cart_detail
 BEFORE INSERT ON detalles_carritos
 FOR EACH ROW EXECUTE FUNCTION validate_cart_detail();
