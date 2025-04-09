@@ -1,3 +1,36 @@
+DROP TABLE IF EXISTS 
+    auditoria_truncates,
+    mantenimientos,
+    detalles_carritos,
+    pedidos,
+    accesorios,
+    carritos,
+    direcciones,
+    telefonos,
+    instrumentos,
+    tecnicos,
+    clientes,
+    tipos_instrumentos,
+    sucursales,
+    producto_audit
+CASCADE;
+
+SELECT table_name 
+FROM information_schema.tables 
+WHERE table_schema = 'public';
+
+CREATE TABLE producto_audit (
+  audit_id SERIAL PRIMARY KEY,
+  table_name TEXT NOT NULL,
+  operation CHAR(1) NOT NULL,
+  changed_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  record_id INTEGER NOT NULL,
+  old_data JSONB,
+  new_data JSONB
+);
+
+
+
 -- 1. Tablas independientes
 CREATE TABLE sucursales (
   id SERIAL PRIMARY KEY,
@@ -55,7 +88,8 @@ CREATE TABLE direcciones (
 CREATE TABLE carritos (
   id SERIAL PRIMARY KEY,
   cliente_id integer NOT NULL REFERENCES clientes(id),
-  estado varchar NOT NULL
+  estado varchar NOT NULL,
+  total decimal
 );
 
 CREATE TABLE accesorios (

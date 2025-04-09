@@ -1,3 +1,43 @@
+-- Triggers para tener audits de productos y usuarios
+CREATE OR REPLACE FUNCTION log_product_changes()
+RETURNS TRIGGER AS $$
+BEGIN
+    IF TG_OP = 'DELETE' THEN
+        INSERT INTO producto_audit (
+            table_name, operation, record_id, old_data
+        ) VALUES (
+            TG_TABLE_NAME, 'D', OLD.id, to_jsonb(OLD)
+        );
+    ELSIF TG_OP = 'UPDATE' THEN
+        INSERT INTO producto_audit (
+            table_name, operation, record_id, old_data, new_data
+        ) VALUES (
+            TG_TABLE_NAME, 'U', NEW.id, to_jsonb(OLD), to_jsonb(NEW)
+        );
+    ELSIF TG_OP = 'INSERT' THEN
+        INSERT INTO producto_audit (
+            table_name, operation, record_id, new_data
+        ) VALUES (
+            TG_TABLE_NAME, 'I', NEW.id, to_jsonb(NEW)
+        );
+    END IF;
+    RETURN NULL;
+END;
+$$ LANGUAGE plpgsql;
+
+-- 3. Create triggers (6 lines total)
+CREATE TRIGGER instrumentos_audit
+AFTER INSERT OR UPDATE OR DELETE ON instrumentos
+FOR EACH ROW EXECUTE FUNCTION log_product_changes();
+
+CREATE TRIGGER accesorios_audit
+AFTER INSERT OR UPDATE OR DELETE ON accesorios
+FOR EACH ROW EXECUTE FUNCTION log_product_changes();
+
+CREATE TRIGGER usuarioss_audit
+AFTER INSERT OR UPDATE OR DELETE ON clientes
+FOR EACH ROW EXECUTE FUNCTION log_product_changes();
+
 -- Soft Delete para Direcciones
 CREATE FUNCTION soft_delete_direccion()
 RETURNS TRIGGER AS $$
@@ -20,7 +60,7 @@ $$ LANGUAGE plpgsql;
 CREATE TRIGGER trg_soft_delete_direccion
 BEFORE DELETE ON direcciones
 FOR EACH ROW
-EXECUTE FUNCTION soft_delete_direccion()
+EXECUTE FUNCTION soft_delete_direccion();
 
 -- Al borrar un carrito, borrar el pedido asociado para evitar llaves huerfanas
 CREATE OR REPLACE FUNCTION delete_pedido_asociado()
@@ -156,7 +196,7 @@ $$ LANGUAGE plpgsql;
 
 -- TRIGGER
 -- TABLA: Detalles Carritos
--- EVENTO: Before Insert
+-- EVENTO: Before Update
 -- ACCION: Prevenir que el detalle del pedido se actualice luego de que se haya comprado
 -- el carrito
 -- JUSTIFICACION: Evitamos errores que se pueden dar al actualizar datos que no se deberian,
