@@ -126,12 +126,19 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
+-- TRIGGER
+-- TABLA: Detalles Carritos
+-- EVENTO: After Insert
+-- ACCION: Actulizar el total del carrito
+-- JUSTIFICACION: Evitamos el ingreso del total manual, asi garantizamos la integridad
+-- de los datos. Se hace luego del insert para verificar que se haya realizado la
+-- accion previo a actualizar el total
+-- ALTERNATIVA: Se puede mantener esta logica del lado del backend en vez de la base de datos
 CREATE TRIGGER trg_update_cart_total
 AFTER INSERT ON detalles_carritos
 FOR EACH ROW EXECUTE FUNCTION update_cart_total();
 
 -- Prevenir actualizar detalles de un pedido completado
--- Before update
 CREATE OR REPLACE FUNCTION prevent_completed_cart_updates()
 RETURNS TRIGGER AS $$
 BEGIN
@@ -147,11 +154,29 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
+-- TRIGGER
+-- TABLA: Detalles Carritos
+-- EVENTO: Before Insert
+-- ACCION: Prevenir que el detalle del pedido se actualice luego de que se haya comprado
+-- el carrito
+-- JUSTIFICACION: Evitamos errores que se pueden dar al actualizar datos que no se deberian,
+-- se hace antes del insert asi se evita que se lleve a cabo la transaccion.
+-- ALTERNATIVA: Cambiar la logica al lado del backend, o duplicar la columna de estado
+-- del carrito en los detalles del carrito. Al duplicarla se puede hacer un check en el
+-- estado, hasta donde tengo entendido los checks no pueden referenciar otra tabla
 CREATE TRIGGER trg_lock_completed_carts
 BEFORE UPDATE ON detalles_carritos
 FOR EACH ROW EXECUTE FUNCTION prevent_completed_cart_updates();
 
--- Actualiza el total del carrito luego de modificar algun producto / linea
+-- TRIGGER
+-- TABLA: Detalles Carritos
+-- EVENTO: After Update
+-- ACCION: Actualiza el total del carrito luego de una actualizacion de un detalle
+-- JUSTIFICACION: Ya tenemos un trigger al insertar, necesitamos uno en update. De esta manera
+-- garantizamos que no existan discrepancias a la hora de por ejemplo agregar un producto
+-- mas a un detalle de compra.
+-- ALTERNATIVA: Al igual que el otro trigger que realiza una accion similar, la unica alternativa
+-- que se nos ocurre es pasar esta logica al backend.
 CREATE TRIGGER trg_update_cart_after_update
 AFTER UPDATE ON detalles_carritos
 FOR EACH ROW EXECUTE FUNCTION update_cart_total();
